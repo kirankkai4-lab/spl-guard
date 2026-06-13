@@ -1,0 +1,117 @@
+<svg width="100%" viewBox="0 0 680 820" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>SPL Guard — Architecture Diagram</title>
+<desc>SPL Guard MCP-to-MCP reverse proxy architecture showing five layers: LangGraph agent, proxy core, SPL intelligence engine, Splunk MCP Server, and FinOps dashboard. Data flows from agent through proxy to Splunk with audit trail written back natively.</desc>
+
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- ── Title ──────────────────────────────────────────────────────────────── -->
+<text class="th" x="340" y="36" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#1a1a1a">SPL Guard — Architecture</text>
+<text class="ts" x="340" y="56" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#666">Inline SPL governance for AI agents on Splunk MCP</text>
+
+<!-- ── Layer 1: LangGraph Agent ───────────────────────────────────────────── -->
+<rect x="200" y="76" width="280" height="64" rx="10" fill="#EEF2FF" stroke="#6366F1" stroke-width="1.5"/>
+<text x="340" y="102" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="600" fill="#3730A3">LangGraph Agent</text>
+<text x="340" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#4338CA">Generates raw SPL via MCP tools/call</text>
+
+<!-- Arrow down -->
+<line x1="340" y1="140" x2="340" y2="166" stroke="#6366F1" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="370" y="158" font-family="Arial, sans-serif" font-size="10" fill="#666">MCP JSON-RPC</text>
+
+<!-- ── Layer 2: SPL Guard Proxy ───────────────────────────────────────────── -->
+<rect x="60" y="168" width="560" height="200" rx="12" fill="#FFF7ED" stroke="#EA580C" stroke-width="2"/>
+<text x="340" y="194" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#C2410C">SPL Guard Proxy  —  Layer 1</text>
+<text x="340" y="210" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#9A3412">FastAPI · localhost:8080 · Windows</text>
+
+<!-- Sub-box: SPL Intelligence -->
+<rect x="88" y="224" width="240" height="80" rx="8" fill="#FFEDD5" stroke="#FB923C" stroke-width="1"/>
+<text x="208" y="248" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#9A3412">SPL Intelligence Engine</text>
+<text x="208" y="264" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">Deterministic regex · under 20ms</text>
+<text x="208" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">SAFE · REWRITTEN · BLOCKED</text>
+<text x="208" y="296" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">Federated Search (Splunk 10.4) aware</text>
+
+<!-- Sub-box: Query Memory -->
+<rect x="352" y="224" width="240" height="80" rx="8" fill="#FFEDD5" stroke="#FB923C" stroke-width="1"/>
+<text x="472" y="248" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="600" fill="#9A3412">Query Memory Cache</text>
+<text x="472" y="264" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">SQLite · SHA-256 keyed</text>
+<text x="472" y="280" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">Approved rewrites persist</text>
+<text x="472" y="296" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">Cache hit rate grows each session</text>
+
+<!-- Modes row -->
+<rect x="88" y="318" width="512" height="36" rx="6" fill="#FED7AA" stroke="#FB923C" stroke-width="0.5"/>
+<text x="344" y="332" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#9A3412">Governance modes:</text>
+<text x="344" y="348" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#C2410C">active — intercept, rewrite, block  ·  passive — observe only  ·  bypass — transparent</text>
+
+<!-- Arrow down - single encrypted channel -->
+<line x1="340" y1="368" x2="340" y2="398" stroke="#EA580C" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="228" y="373" width="224" height="20" rx="4" fill="#FFF7ED" stroke="none"/>
+<text x="340" y="387" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#9A3412">encrypted MCP token · one channel · no side connections</text>
+
+<!-- ── Layer 3: Splunk MCP Server ─────────────────────────────────────────── -->
+<rect x="60" y="400" width="560" height="140" rx="12" fill="#F0FDF4" stroke="#16A34A" stroke-width="2"/>
+<text x="340" y="426" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#166534">Splunk MCP Server v1.2</text>
+<text x="340" y="442" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">Windows · port 8089 · receives clean SPL only</text>
+
+<!-- Splunk sub-boxes -->
+<rect x="88" y="456" width="150" height="68" rx="8" fill="#DCFCE7" stroke="#4ADE80" stroke-width="1"/>
+<text x="163" y="478" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#166534">run_splunk_query</text>
+<text x="163" y="494" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">Executes rewritten SPL</text>
+<text x="163" y="508" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">Rate limited v1.2</text>
+
+<rect x="258" y="456" width="150" height="68" rx="8" fill="#DCFCE7" stroke="#4ADE80" stroke-width="1"/>
+<text x="333" y="478" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#166534">_internal index</text>
+<text x="333" y="494" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">MCP telemetry</text>
+<text x="333" y="508" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">SVC consumption</text>
+
+<rect x="428" y="456" width="164" height="68" rx="8" fill="#DCFCE7" stroke="#4ADE80" stroke-width="1"/>
+<text x="510" y="478" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#166534">splguard_audit</text>
+<text x="510" y="494" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">Native audit trail</text>
+<text x="510" y="508" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#15803D">via collect command</text>
+
+<!-- Audit write-back arrow -->
+<path d="M 510 540 L 510 580 L 430 580 L 430 560 L 390 560 L 390 540" fill="none" stroke="#16A34A" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+<text x="500" y="574" font-family="Arial, sans-serif" font-size="9" fill="#15803D">audit write-back</text>
+
+<!-- Arrow down to dashboard -->
+<line x1="180" y1="540" x2="180" y2="588" stroke="#16A34A" stroke-width="1.5" stroke-dasharray="4 3" marker-end="url(#arrow)"/>
+<text x="76" y="568" font-family="Arial, sans-serif" font-size="9" fill="#15803D">_internal SPL</text>
+
+<!-- ── Layer 4: FinOps Dashboard ──────────────────────────────────────────── -->
+<rect x="60" y="590" width="560" height="110" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+<text x="340" y="616" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#1D4ED8">FinOps Dashboard  —  Layer 5</text>
+<text x="340" y="632" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1E40AF">Streamlit · localhost:8502</text>
+
+<!-- Dashboard metrics row -->
+<rect x="88" y="644" width="116" height="44" rx="6" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.5"/>
+<text x="146" y="662" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1D4ED8">Queries</text>
+<text x="146" y="678" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1E40AF">intercepted · rewritten</text>
+
+<rect x="218" y="644" width="116" height="44" rx="6" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.5"/>
+<text x="276" y="662" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1D4ED8">SVC saved</text>
+<text x="276" y="678" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1E40AF">Est. $ saved (session)</text>
+
+<rect x="348" y="644" width="116" height="44" rx="6" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.5"/>
+<text x="406" y="662" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1D4ED8">Recent rewrites</text>
+<text x="406" y="678" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1E40AF">original vs rewritten SPL</text>
+
+<rect x="478" y="644" width="114" height="44" rx="6" fill="#DBEAFE" stroke="#93C5FD" stroke-width="0.5"/>
+<text x="535" y="662" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1D4ED8">Blocked queries</text>
+<text x="535" y="678" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#1E40AF">admin review panel</text>
+
+<!-- ── Legend ──────────────────────────────────────────────────────────────── -->
+<rect x="60" y="718" width="560" height="82" rx="8" fill="#F9FAFB" stroke="#E5E7EB" stroke-width="1"/>
+<text x="340" y="738" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="600" fill="#374151">Key design principles</text>
+
+<circle cx="90" cy="756" r="4" fill="#EA580C"/>
+<text x="100" y="760" font-family="Arial, sans-serif" font-size="10" fill="#374151">One encrypted MCP token · no side REST connections · no second credentials</text>
+
+<circle cx="90" cy="774" r="4" fill="#16A34A"/>
+<text x="100" y="778" font-family="Arial, sans-serif" font-size="10" fill="#374151">Splunk is the audit store · every decision written back via collect SPL command</text>
+
+<circle cx="90" cy="792" r="4" fill="#6366F1"/>
+<text x="100" y="796" font-family="Arial, sans-serif" font-size="10" fill="#374151">Deterministic regex inspection · under 20ms · no LLM in the critical path</text>
+
+</svg>
