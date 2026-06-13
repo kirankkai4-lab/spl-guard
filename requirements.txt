@@ -1,0 +1,29 @@
+# ── Core proxy ────────────────────────────────────────────────────────────────
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+httpx==0.27.2
+pydantic==2.8.2
+pydantic-settings==2.4.0
+
+# ── SPL intelligence ──────────────────────────────────────────────────────────
+# stdlib re + json handle parsing — no extra package needed
+
+# ── Agent framework (already installed from prior build) ──────────────────────
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-google-genai>=1.0.0
+langchain-core>=0.3.0
+
+# ── Telemetry dashboard ───────────────────────────────────────────────────────
+streamlit==1.38.0
+pandas==2.2.2
+
+# ── Query memory ──────────────────────────────────────────────────────────────
+# stdlib sqlite3 — no extra package needed
+
+# ── Observability ─────────────────────────────────────────────────────────────
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp-proto-grpc==1.27.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
