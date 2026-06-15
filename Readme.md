@@ -64,7 +64,7 @@ pip install -r requirements.txt
 
 Copy the example config:
 ```cmd
-copy .env.example.env
+copy .env.example .env
 notepad .env
 ```
 
@@ -244,7 +244,7 @@ The MCP endpoint is at `https://your-computer-name:8089/services/mcp`.
 
 ## Governance modes
 
-SPL Guard supports three operating modes controlled by `SPLGUARD_MODE` in `.env`:
+SPL Guard supports three operating modes controlled by  in :
 
 | Mode | What it does | When to use |
 |---|---|---|
