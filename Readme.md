@@ -64,7 +64,7 @@ pip install -r requirements.txt
 
 Copy the example config:
 ```cmd
-copy .env.example .env
+copy .env.example.env
 notepad .env
 ```
 
