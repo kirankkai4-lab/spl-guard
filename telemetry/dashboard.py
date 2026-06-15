@@ -1,21 +1,17 @@
 """
 telemetry/dashboard.py
 ──────────────────────
-Layer 5 — FinOps Dashboard
+Layer 5 — SPL Guard FinOps Dashboard
 
-Single data source: the proxy /stats endpoint.
+Single data source: proxy /stats endpoint.
+/stats merges local SQLite + live Splunk _internal via MCP channel.
 
-/stats already merges:
-  - Local SQLite intercept counts
-  - Live Splunk _internal MCP telemetry   ← via MCP channel (encrypted token)
-  - SVC rate-limit hit data               ← via MCP channel (encrypted token)
-  - SPL Guard audit log read back from Splunk  ← via MCP channel (encrypted token)
-
-No SPLUNK_REST_TOKEN. No side connection on port 8089.
-One token. One channel. Dashboard just reads /stats.
+Run with:
+  Windows: streamlit run telemetry/dashboard.py --server.port 8502
 """
 
 import os
+import sqlite3
 import time
 from datetime import datetime, timezone
 
@@ -23,12 +19,13 @@ import httpx
 import pandas as pd
 import streamlit as st
 
-PROXY_BASE       = os.getenv("PROXY_BASE_URL", "http://localhost:8080")
-REFRESH_SECS     = 10
-SVC_PER_HIGH_RISK    = 2.5      # SVC units per high-risk intercept (conservative)
-SVC_ANNUAL_COST      = 65000    # $ per SVC per year (Splunk workload pricing midpoint)
-SVC_HOURLY_COST      = round(SVC_ANNUAL_COST / 365 / 24, 2)   # $7.42/hr
-DOLLAR_PER_HIGH_RISK = round(SVC_HOURLY_COST * SVC_PER_HIGH_RISK, 2)  # ~$18.55
+PROXY_BASE        = os.getenv("PROXY_BASE_URL", "http://127.0.0.1:8080")
+MEMORY_DB_PATH    = os.getenv("MEMORY_DB_PATH", "./memory/query_cache.db")
+REFRESH_SECS      = 10
+SVC_PER_HIGH_RISK = 2.5
+SVC_ANNUAL_COST   = 65000
+SVC_HOURLY_COST   = round(SVC_ANNUAL_COST / 365 / 24, 2)
+DOLLAR_PER_HIGH_RISK = round(SVC_HOURLY_COST * SVC_PER_HIGH_RISK, 2)
 
 st.set_page_config(
     page_title = "SPL Guard — FinOps",
@@ -43,7 +40,7 @@ st.caption(
 )
 
 
-# ── Fetch ──────────────────────────────────────────────────────────────────────
+# ── Fetch stats ────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=REFRESH_SECS)
 def fetch_stats() -> dict:
     try:
@@ -57,8 +54,20 @@ data = fetch_stats()
 
 if "error" in data:
     st.error(f"Proxy unreachable: {data['error']}")
-    st.info("Start the proxy:  `uvicorn proxy.main:app --port 8080 --reload`")
+    st.info("Start the proxy:  `uvicorn proxy.main:app --host 127.0.0.1 --port 8080 --reload`")
     st.stop()
+
+
+# ── Mode indicator ─────────────────────────────────────────────────────────────
+mode = data.get("mode", "active")
+if mode == "active":
+    st.success("🟢 Active mode — SPL Guard is intercepting and rewriting queries")
+elif mode == "passive":
+    st.warning("🟡 Passive mode — SPL Guard is monitoring only, not rewriting or blocking")
+elif mode == "bypass":
+    st.error("🔴 Bypass mode — SPL Guard is transparent, no governance active")
+
+st.divider()
 
 
 # ── Extract fields ─────────────────────────────────────────────────────────────
@@ -68,18 +77,17 @@ rewritten  = data.get("rewritten", 0)
 blocked    = data.get("blocked", 0)
 cache_hits = data.get("cache_hits", 0)
 high_risk  = data.get("high_risk_prevented", 0)
-svc_saved        = round(high_risk * SVC_PER_HIGH_RISK, 1)
-dollars_saved    = round(high_risk * DOLLAR_PER_HIGH_RISK, 2)
+svc_saved       = round(high_risk * SVC_PER_HIGH_RISK, 1)
+dollars_saved   = round(high_risk * DOLLAR_PER_HIGH_RISK, 2)
 
-splunk_mcp_rows   = data.get("splunk_mcp_activity", [])
-rate_limit_rows   = data.get("splunk_rate_limiting", [])
-audit_rows        = data.get("splguard_audit_from_splunk", [])
+splunk_mcp_rows  = data.get("splunk_mcp_activity", [])
+rate_limit_rows  = data.get("splunk_rate_limiting", [])
+audit_rows       = data.get("splguard_audit_from_splunk", [])
+splunk_live      = bool(splunk_mcp_rows or rate_limit_rows)
 
-splunk_live = bool(splunk_mcp_rows or rate_limit_rows)
 
-
-# ── Top KPI row ────────────────────────────────────────────────────────────────
-c1, c2, c3, c4, c5, c6 , c7 = st.columns(7)
+# ── KPI row ────────────────────────────────────────────────────────────────────
+c1, c2, c3, c4, c5, c6, c7 = st.columns(7)
 c1.metric("Queries intercepted", total)
 c2.metric("Safe — forwarded",    safe)
 c3.metric("Rewritten",           rewritten,
@@ -87,21 +95,27 @@ c3.metric("Rewritten",           rewritten,
 c4.metric("Blocked",             blocked,
           delta=f"prevented {blocked}" if blocked else None,
           delta_color="inverse")
-c5.metric("SVC units saved", svc_saved,
+c5.metric("SVC units saved",     svc_saved,
           delta="↓ compute cost" if svc_saved > 0 else None)
-c6.metric("Estimated $ saved", f"${dollars_saved:,.2f}",
+c6.metric("Est. $ saved (session)", f"${dollars_saved:,.2f}",
           delta="↓ SVC spend" if dollars_saved > 0 else None)
 c7.metric("Cache hits",          cache_hits,
           delta=f"{round(cache_hits/total*100)}% rate" if total else None)
 
-# Splunk live indicator
+if dollars_saved > 0:
+    st.success(
+        f"🛡️ SPL Guard intercepted {high_risk} high-risk queries this session — "
+        f"estimated **${dollars_saved:,.2f}** in SVC compute costs avoided. "
+        f"Based on Splunk workload pricing of ~$65K/SVC/year."
+    )
+
 if splunk_live:
     st.success("🟢 Splunk _internal telemetry live — data sourced via MCP channel")
 else:
     st.warning(
         "🟡 Splunk _internal telemetry not yet available. "
-        "Proxy stats are from local SQLite. "
-        "Ensure the MCP token has `splunk_run_query` access."
+        "Stats are from local SQLite. "
+        "Ensure the MCP token role has `splunk_run_query` access."
     )
 
 st.divider()
@@ -130,24 +144,85 @@ with left:
 with right:
     st.subheader("Splunk MCP Server — live _internal activity")
     st.caption("Source: index=_internal via run_splunk_query on MCP channel")
-
     if splunk_mcp_rows:
         st.dataframe(pd.DataFrame(splunk_mcp_rows), use_container_width=True)
     else:
         st.info("Waiting for Splunk _internal data via MCP channel.")
 
     st.subheader("Rate limit telemetry (v1.2)")
-    st.caption("Source: MCP rate-limit hits from _internal — shows what AICB prevents")
     if rate_limit_rows:
-        rl_df = pd.DataFrame(rate_limit_rows)
-        st.dataframe(rl_df, use_container_width=True)
+        st.dataframe(pd.DataFrame(rate_limit_rows), use_container_width=True)
     else:
         st.info("No rate-limit events yet.")
 
 st.divider()
 
 
-# ── SPL Guard audit from Splunk ────────────────────────────────────────────────────
+# ── Recent rewrites — intent preserved ────────────────────────────────────────
+st.subheader("🔄 Recent rewrites — intent preserved")
+st.caption(
+    "Shows original vs rewritten SPL side by side. "
+    "The search intent is preserved — only unsafe bounds are added."
+)
+try:
+    import os as _os
+    db_path = MEMORY_DB_PATH.replace('/', '\\') if '/' in MEMORY_DB_PATH else MEMORY_DB_PATH
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT raw_spl, final_spl, reasons, svc_risk, last_seen "
+        "FROM query_cache ORDER BY last_seen DESC LIMIT 5"
+    ).fetchall()
+    conn.close()
+    if rows:
+        for row in rows:
+            with st.expander(f"Rewrite — {row['last_seen'][:19]}  |  risk: {row['svc_risk'].upper()}"):
+                col1, col2 = st.columns(2)
+                col1.markdown("**Original (unsafe)**")
+                col1.code(row["raw_spl"], language="text")
+                col2.markdown("**Rewritten (safe)**")
+                col2.code(row["final_spl"], language="text")
+                import json as _json
+                reasons = _json.loads(row["reasons"]) if row["reasons"] else []
+                st.caption(f"Reasons: {', '.join(reasons)}")
+    else:
+        st.info("No rewrites recorded yet.")
+except Exception as e:
+    st.error(f"Error reading cache: {e}")
+
+st.divider()
+
+
+# ── Blocked queries — admin review ────────────────────────────────────────────
+st.subheader("🚫 Blocked queries — admin review")
+st.caption(
+    "Queries stopped before reaching Splunk. "
+    "Full details available in index=splguard_audit in Splunk."
+)
+try:
+    conn = sqlite3.connect(MEMORY_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    blocked_rows = conn.execute(
+        "SELECT hash, ts, verdict, svc_risk FROM intercept_log "
+        "WHERE verdict='blocked' ORDER BY ts DESC LIMIT 10"
+    ).fetchall()
+    conn.close()
+    if blocked_rows:
+        df = pd.DataFrame([dict(r) for r in blocked_rows])
+        st.dataframe(df, use_container_width=True)
+        st.caption(
+            "To alert on blocked queries in Splunk: "
+            "`index=splguard_audit sourcetype=splguard_intercept verdict=blocked`"
+        )
+    else:
+        st.info("No blocked queries yet.")
+except Exception:
+    st.info("Intercept log not yet initialised.")
+
+st.divider()
+
+
+# ── SPL Guard audit log from Splunk ───────────────────────────────────────────
 st.subheader("SPL Guard audit log — read back from Splunk")
 st.caption(
     "Every proxy decision written to index=splguard_audit via MCP, "
@@ -157,25 +232,39 @@ if audit_rows:
     st.dataframe(pd.DataFrame(audit_rows), use_container_width=True)
 else:
     st.info(
-        "No audit events yet, or SPL_Guard_Audit index not yet created. "
+        "No audit events yet, or splguard_audit index not yet created. "
         "First intercept will trigger the write."
     )
 
 st.divider()
 
 
-# ── HITL mode ─────────────────────────────────────────────────────────────────
-st.subheader("🔀 Intercept mode")
+# ── Governance mode control ────────────────────────────────────────────────────
+st.subheader("⚙️ Governance mode")
+col1, col2 = st.columns(2)
+col1.metric("Current mode", mode.upper())
+col2.info(
+    "To change mode: update `SPLGUARD_MODE` in `.env` and restart the proxy.\n\n"
+    "**active** — intercept, rewrite, block (default)\n\n"
+    "**passive** — observe and log only, forward unchanged\n\n"
+    "**bypass** — completely transparent, no governance"
+)
+
+st.divider()
+
+
+# ── HITL toggle ───────────────────────────────────────────────────────────────
+st.subheader("🔀 Human-in-the-loop intercept")
 hitl = st.toggle(
-    "Manual intercept mode (HITL)",
+    "Manual intercept mode",
     value=False,
-    help="When ON — high-risk queries queue here for admin approval before forwarding",
+    help="When ON — high-risk queries pause for admin approval before forwarding",
 )
 if hitl:
     st.warning(
         "Manual mode active. High-risk queries pause at the proxy and wait for "
-        "admin approval. Full wiring: LangGraph `interrupt()` → approve/deny here "
-        "→ proxy resumes forward."
+        "admin approval. Full wiring: LangGraph interrupt() → approve/deny here "
+        "→ proxy resumes forward. (v1.1 roadmap)"
     )
 else:
     st.success("Automated mode — proxy rewrites and forwards without interruption.")
